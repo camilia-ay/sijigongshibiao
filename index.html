@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Gantt Scheduler</title>
+    <!-- 添加Supabase客户端库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        function getCurrentDate() {
+            return document.getElementById('datePicker').value;
+        }
+        // Supabase配置
+        const supabaseUrl = 'https://epxnzvmxmtcacdmdeezz.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVweG56dm14bXRjYWNkbWRlZXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4NTkyMjQsImV4cCI6MjA2NDQzNTIyNH0.D0N3G4DO7at7TH_VwoW1PwOZMkrD4tKJo0bcepAb5v8'
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f5f6fa;
+            margin: 0;
+        }
+        .main-header {
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border-radius: 0 0 16px 16px;
+            margin-bottom: 18px;
+            padding-left: 28px;
+            padding-right: 28px;
+            box-sizing: border-box;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .nav-button {
+            padding: 10px 28px;
+            border: 2px solid #F7941D;
+            border-radius: 8px;
+            background: #fff;
+            color: #F7941D;
+            font-weight: bold;
+            font-size: 17px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 4px rgba(247,148,29,0.04);
+        }
+        .nav-button.active {
+            background: #F7941D;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(247,148,29,0.10);
+        }
+        .date-picker {
+            font-size: 16px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .container {
+            width: 100vw;
+            max-width: none;
+            margin: 0;
+            padding: 0 0 32px 0;
+        }
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            margin: 18px 18px 0 18px;
+            padding: 28px 28px 22px 28px;
+        }
+        .create-task-area {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+        .create-task-area input[type="text"] {
+            padding: 12px 16px;
+            border: 1.5px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            width: 220px;
+        }
+        .create-task-area button {
+            background: #F7941D;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 28px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(247,148,29,0.08);
+        }
+        .unassigned-tasks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            min-height: 48px;
+            margin-bottom: 10px;
+        }
+        .task-card {
+            background: #fff;
+            color: #222;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+            padding: 10px 22px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: grab;
+            z-index: 1;
+            min-width: 60px;
+            min-height: 36px;
+            transition: box-shadow 0.2s;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+        .task-card:hover {
+            box-shadow: 0 4px 16px rgba(247,148,29,0.18);
+        }
+        .task-card .delete-btn {
+            display: none;
+            position: absolute;
+            top: 2px;
+            right: 6px;
+            color: #e74c3c;
+            font-size: 16px;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .task-card:hover .delete-btn {
+            display: block;
+        }
+        .task-card .resize-handle,
+        .task-card .delete-btn {
+            pointer-events: auto;
+        }
+        .drivers-section {
+            margin-top: 10px;
+        }
+        .drivers-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 28px;
+        }
+        .driver-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            padding: 22px 22px 22px 22px;
+            min-width: 900px;
+            flex: 1 1 900px;
+            margin-bottom: 16px;
+        }
+        .driver-header {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .driver-name {
+            font-size: 22px;
+            font-weight: bold;
+            border: none;
+            background: transparent;
+            outline: none;
+            min-width: 80px;
+        }
+        .work-hours {
+            font-size: 16px;
+            color: #888;
+        }
+        .gantt-table {
+            margin-top: 12px;
+            background: #fafbfc;
+            border-radius: 10px;
+            padding: 16px 12px 22px 12px;
+        }
+        .gantt-grid {
+            display: grid;
+            grid-template-columns: repeat(30, 55px);
+            font-size: 12px;
+        }
+        .gantt-time-slot {
+            width: 55px;
+            min-width: 55px;
+            max-width: 55px;
+            text-align: center;
+            color: #333;
+            border-right: 1px solid #eee;
+            padding: 2px 0;
+            white-space: nowrap;
+            background: transparent;
+            font-size: 12px;
+            line-height: 1.1;
+        }
+        .gantt-task-row {
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            min-height: 38px;
+            align-items: center;
+        }
+        .task-slot-drop {
+            min-height: 38px;
+        }
+        .add-driver-btn {
+            margin: 10px 0 0 0;
+            padding: 10px 22px;
+            background: #F7941D;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(247,148,29,0.08);
+        }
+        .add-driver-btn:hover {
+            background: #ffae42;
+        }
+        /* Cost Table */
+        .cost-table-section {
+            display: none;
+        }
+        .cost-table-section.active {
+            display: block;
+        }
+        .cost-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 18px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            overflow: hidden;
+        }
+        .cost-table th, .cost-table td {
+            border: 1px solid #eee;
+            padding: 12px 10px;
+            text-align: center;
+            font-size: 15px;
+        }
+        .cost-table th {
+            background: #f7f7f7;
+            font-weight: bold;
+        }
+        @media (max-width: 1200px) {
+            .driver-card {
+                min-width: 600px;
+                flex: 1 1 600px;
+            }
+        }
+        @media (max-width: 800px) {
+            .driver-card {
+                min-width: 350px;
+                flex: 1 1 350px;
+            }
+        }
+        .cross-row-part1 {
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            border-right: none !important;
+        }
+        .cross-row-part2 {
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+            margin-left: -2px;
+            border-left: none !important;
+        }
+        .delete-driver-btn {
+            display: none;
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            color: #e74c3c;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .driver-card:hover .delete-driver-btn {
+            display: block;
+        }
+        .gantt-task-card {
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-header" style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 10px 24px;">
+        <div class="nav-buttons">
+            <button class="nav-button active" data-view="gantt">Gantt Chart</button>
+            <button class="nav-button" data-view="cost">Cost Table</button>
+        </div>
+        <div style="flex:1; display:flex; justify-content:center; align-items:center;">
+            <img src="logo.png" alt="Logo" style="height:48px; display: block;" />
+        </div>
+        <input type="date" class="date-picker" id="datePicker" />
+    </div>
+    <div class="container">
+        <!-- 任务创建区 -->
+        <div class="card">
+            <div class="create-task-area">
+                <input type="text" id="orderInput" placeholder="Enter Order ID">
+                <button id="createTaskBtn">Create Task</button>
+            </div>
+            <div class="unassigned-tasks" id="unassignedTasks">
+                <!-- 任务卡片占位 -->
+                <div class="task-card">A12345 <span class="delete-btn">×</span></div>
+                <div class="task-card">B67890 <span class="delete-btn">×</span></div>
+            </div>
+        </div>
+        <!-- 甘特图区域 -->
+        <div class="card gantt-section" id="ganttSection">
+            <!-- 司机卡片区 -->
+            <div class="drivers-section">
+                <div class="drivers-list" id="driversList">
+                    <!-- 单个司机卡片 -->
+                    <div class="driver-card">
+                        <div class="driver-header">
+                            <input class="driver-name" value="Driver 1" />
+                            <span class="work-hours">Used Hours: 0.0</span>
+                            <button class="delete-driver-btn">×</button>
+                        </div>
+                        <div class="gantt-table">
+                            <!-- 第一行时间轴 -->
+                            <div class="gantt-row gantt-time-labels" id="driver-1-row1"></div>
+                            <div class="gantt-row gantt-task-row task-drop-row" id="driver-1-taskrow1"></div>
+                            <!-- 第二行时间轴 -->
+                            <div class="gantt-row gantt-time-labels" id="driver-1-row2"></div>
+                            <div class="gantt-row gantt-task-row task-drop-row" id="driver-1-taskrow2"></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="add-driver-btn" id="addDriverBtn">+ Add Driver</button>
+                    <button class="add-driver-btn" id="ganttExportBtn">Export CSV</button>
+                </div>
+            </div>
+        </div>
+        <!-- 时间成本表区域 -->
+        <div class="card cost-table-section" id="costSection">
+            <h2>Order Cost Table</h2>
+            <table class="cost-table">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Driver</th>
+                        <th>Date</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Used Hours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="add-driver-btn" id="exportBtn" style="margin-top: 18px;">Export CSV</button>
+        </div>
+    </div>
+    <script>
+        // ========== 配色方案 ==========
+        const TASK_COLORS = [
+            '#4CAF50', // 绿色
+            '#2196F3', // 蓝色
+            '#FF9800', // 橙色
+            '#9C27B0', // 紫色
+            '#F44336', // 红色
+            '#00BCD4', // 青色
+            '#FFEB3B', // 黄色
+            '#795548'  // 棕色
+        ];
+
+        // ========== 数据结构与Supabase同步 ==========
+        let state = {
+            tasks: [], // {id, status, driverId, slotIndex, length, colorIdx}
+            drivers: []
+        };
+
+        // 加载所有数据
+        async function loadState() {
+            // 1. 获取所有status=Completed的任务单号
+            const { data: completedTasks, error: tasksError } = await supabase
+                .from('tasks')
+                .select('id')
+                .eq('status', 'Completed');
+            if (tasksError) { console.error(tasksError); return; }
+
+            // 2. 获取所有司机
+            const { data: drivers, error: driversError } = await supabase
+                .from('drivers')
+                .select('*');
+            if (driversError) { console.error(driversError); return; }
+
+            // 3. 获取所有已分配任务
+            const { data: schedules, error: schedulesError } = await supabase
+                .from('driver_schedules')
+                .select('*');
+            if (schedulesError) { console.error(schedulesError); return; }
+
+            // 4. 组装state.tasks
+            // 先全部设为unassigned
+            state.tasks = completedTasks.map(t => ({ id: t.id, status: 'unassigned' }));
+            // 再用driver_schedules覆盖为assigned
+            schedules.forEach(sch => {
+                // 只处理tasks表中存在的单号
+                const idx = state.tasks.findIndex(t => t.id === sch.task_id);
+                if (idx !== -1) {
+                    state.tasks[idx] = {
+                        id: sch.task_id,
+                        status: 'assigned',
+                        driverId: sch.driver_id,
+                        slotIndex: sch.slot_index,
+                        length: sch.length,
+                        colorIdx: sch.color_idx
+                    };
+                }
+            });
+            state.drivers = drivers;
+            console.log('drivers:', state.drivers);
+        }
+
+        // 保存分配/删除/修改任务到Supabase
+        async function saveState() {
+            // 只操作driver_schedules表
+            // 1. 先清空driver_schedules表
+            await supabase.from('driver_schedules').delete().neq('id', 0);
+            // 2. 插入所有已分配任务
+            const assigned = state.tasks.filter(t => t.status === 'assigned');
+            if (assigned.length > 0) {
+                await supabase.from('driver_schedules').insert(
+                    assigned.map(t => ({
+                        task_id: t.id,
+                        driver_id: t.driverId,
+                        slot_index: t.slotIndex,
+                        length: t.length,
+                        color_idx: t.colorIdx
+                    }))
+                );
+            }
+        }
+
+        // ========== 任务卡片渲染 ==========
+        function renderTasks() {
+            // 未分配区
+            const unassigned = document.getElementById('unassignedTasks');
+            unassigned.innerHTML = '';
+            state.tasks.filter(t=>t.status==='unassigned').forEach(task => {
+                unassigned.appendChild(createTaskCard(task.id));
+            });
+            // 司机区
+            const driversList = document.getElementById('driversList');
+            driversList.innerHTML = '';
+            const date = getCurrentDate();
+            const tasks = state.tasks;
+            state.drivers.forEach(driver => {
+                const driverCard = document.createElement('div');
+                driverCard.className = 'driver-card';
+                const driverHeader = document.createElement('div');
+                driverHeader.className = 'driver-header';
+                const driverName = document.createElement('input');
+                driverName.className = 'driver-name';
+                driverName.value = driver.name;
+                driverName.readOnly = true;
+                driverName.onclick = function(e) {
+                    e.stopPropagation();
+                    this.readOnly = false;
+                    this.select();
+                };
+                driverName.onblur = async function() {
+                    this.readOnly = true;
+                    const newName = this.value.trim();
+                    if (newName && newName !== driver.name) {
+                        if (state.drivers.some(d => d.id !== driver.id && d.name === newName)) {
+                            alert('Driver name already exists!');
+                            this.value = driver.name;
+                            return;
+                        }
+                        // 更新Supabase数据库
+                        await supabase.from('drivers').update({ name: newName }).eq('id', driver.id);
+                        // 重新加载数据并渲染
+                        await loadState();
+                        renderTasks();
+                    }
+                };
+                driverName.onkeydown = function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.blur();
+                    }
+                };
+                // 添加删除按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-driver-btn';
+                deleteBtn.textContent = '×';
+                deleteBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    const hasTasks = tasks.some(t => t.status === 'assigned' && t.driverId === driver.id);
+                    if (hasTasks) {
+                        alert('Cannot delete driver with assigned tasks!');
+                        return;
+                    }
+                    if (confirm('Are you sure you want to delete this driver?')) {
+                        state.drivers = state.drivers.filter(d => d.id !== driver.id);
+                        saveState();
+                        renderTasks();
+                    }
+                };
+                const workHours = document.createElement('span');
+                workHours.className = 'work-hours';
+                const usedHours = tasks.filter(t => t.status === 'assigned' && t.driverId === driver.id)
+                    .reduce((sum, t) => sum + ((t.length || 1) * 0.5), 0);
+                workHours.textContent = 'Used Hours: ' + usedHours.toFixed(1);
+                driverHeader.appendChild(driverName);
+                driverHeader.appendChild(workHours);
+                driverHeader.appendChild(deleteBtn);
+                driverCard.appendChild(driverHeader);
+                // ========== 恢复甘特图渲染 ==========
+                const ganttTable = document.createElement('div');
+                ganttTable.className = 'gantt-table';
+                const grid = document.createElement('div');
+                grid.className = 'gantt-grid';
+                grid.style.display = 'grid';
+                grid.style.gridTemplateColumns = 'repeat(30, 1fr)';
+                grid.style.gridTemplateRows = 'auto auto';
+                // 渲染时间格
+                for (let i = 0; i < 30; i++) {
+                    const slotDiv = document.createElement('div');
+                    slotDiv.className = 'gantt-time-slot';
+                    const start = TIME_POINTS[i];
+                    const end = TIME_POINTS[i+1];
+                    slotDiv.innerHTML = `${start}-<br>${end}`;
+                    slotDiv.style.gridRow = '1';
+                    slotDiv.style.gridColumn = (i+1);
+                    grid.appendChild(slotDiv);
+                }
+                // 渲染任务区
+                for (let i = 0; i < 30; ) {
+                    const task = tasks.find(t=>t.status==='assigned' && t.driverId===driver.id && t.slotIndex===i);
+                    if (task) {
+                        const card = createTaskCard(task.id, task.colorIdx, true);
+                        card.style.gridRow = '2';
+                        card.style.gridColumn = `${i+1} / span ${task.length || 1}`;
+                        grid.appendChild(card);
+                        i += task.length || 1;
+                    } else {
+                        const taskSlot = document.createElement('div');
+                        taskSlot.className = 'task-slot-drop';
+                        taskSlot.dataset.slot = i;
+                        taskSlot.style.gridRow = '2';
+                        taskSlot.style.gridColumn = (i+1);
+                        // 拖拽事件绑定
+                        taskSlot.addEventListener('dragover', function(e) {
+                            const orderId = e.dataTransfer.getData('text/plain');
+                            const task = state.tasks.find(t=>t.id===orderId);
+                            let desiredLen = task && task.length ? task.length : 1;
+                            let slotIndex = parseInt(this.dataset.slot);
+                            let overlap = false;
+                            for (let k = 0; k < desiredLen; k++) {
+                                if (tasks.some(t => t.id !== orderId && t.status === 'assigned' && t.driverId===driver.id && t.slotIndex === slotIndex + k)) {
+                                    overlap = true;
+                                    break;
+                                }
+                            }
+                            if (!overlap && slotIndex + desiredLen <= 30) {
+                                e.preventDefault();
+                                this.style.background = '#ffe5c2';
+                            } else {
+                                this.style.background = '';
+                            }
+                        });
+                        taskSlot.addEventListener('dragleave', function(e) {
+                            this.style.background = '';
+                        });
+                        taskSlot.addEventListener('drop', function(e) {
+                            e.preventDefault();
+                            this.style.background = '';
+                            const orderId = e.dataTransfer.getData('text/plain');
+                            const task = state.tasks.find(t=>t.id===orderId);
+                            let desiredLen = task && task.length ? task.length : 1;
+                            let slotIndex = parseInt(this.dataset.slot);
+                            let maxLen = 0;
+                            for (let k = 0; k < 30 - slotIndex; k++) {
+                                if (tasks.some(t => t.id !== orderId && t.status === 'assigned' && t.driverId===driver.id && t.slotIndex === slotIndex + k)) {
+                                    break;
+                                }
+                                maxLen++;
+                            }
+                            let finalLen = maxLen >= desiredLen ? desiredLen : maxLen;
+                            let overlap = false;
+                            for (let k = 0; k < finalLen; k++) {
+                                if (tasks.some(t => t.id !== orderId && t.status === 'assigned' && t.driverId===driver.id && t.slotIndex === slotIndex + k)) {
+                                    overlap = true;
+                                    break;
+                                }
+                            }
+                            if (finalLen > 0 && !overlap) {
+                                // 找到左侧最近的任务卡片
+                                let prevTask = null;
+                                for (let k = slotIndex - 1; k >= 0; k--) {
+                                    prevTask = tasks.find(t => t.status === 'assigned' && t.driverId === driver.id && t.slotIndex === k);
+                                    if (prevTask) break;
+                                }
+                                let usedColors = [];
+                                if (prevTask) usedColors.push(prevTask.colorIdx);
+                                // 右侧最近的任务卡片
+                                let nextTask = null;
+                                for (let k = slotIndex + finalLen; k < 30; k++) {
+                                    nextTask = tasks.find(t => t.status === 'assigned' && t.driverId === driver.id && t.slotIndex === k);
+                                    if (nextTask) break;
+                                }
+                                if (nextTask) usedColors.push(nextTask.colorIdx);
+                                let colorIdx = 0;
+                                while (usedColors.includes(colorIdx) && colorIdx < TASK_COLORS.length) colorIdx++;
+                                if (colorIdx >= TASK_COLORS.length) colorIdx = 0;
+                                task.status = 'assigned';
+                                task.driverId = driver.id;
+                                task.slotIndex = slotIndex;
+                                task.length = finalLen;
+                                task.colorIdx = colorIdx;
+                                saveState();
+                                renderTasks();
+                            }
+                        });
+                        grid.appendChild(taskSlot);
+                        i++;
+                    }
+                }
+                ganttTable.appendChild(grid);
+                driverCard.appendChild(ganttTable);
+                // ========== 甘特图渲染结束 ==========
+                driversList.appendChild(driverCard);
+            });
+            renderCostTable();
+        }
+        function createTaskCard(orderId, colorIdx, isGantt) {
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            if (isGantt) card.classList.add('gantt-task-card');
+            card.textContent = orderId;
+            card.setAttribute('draggable', 'true');
+            if (typeof colorIdx === 'number') {
+                card.style.background = TASK_COLORS[colorIdx % TASK_COLORS.length];
+                card.style.color = (colorIdx === 6) ? '#222' : '#fff';
+            } else {
+                card.style.background = '#eee';
+                card.style.color = '#222';
+            }
+            
+            // 添加双击编辑功能
+            card.ondblclick = function(e) {
+                e.stopPropagation();
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = orderId;
+                input.style.width = '100%';
+                input.style.height = '100%';
+                input.style.border = 'none';
+                input.style.background = 'transparent';
+                input.style.color = 'inherit';
+                input.style.textAlign = 'center';
+                input.style.fontSize = 'inherit';
+                input.style.fontFamily = 'inherit';
+                input.style.padding = '0';
+                input.style.margin = '0';
+                input.style.outline = 'none';
+                
+                // 保存新订单号
+                function saveNewOrderId() {
+                    const newOrderId = input.value.trim();
+                    if (newOrderId && newOrderId !== orderId) {
+                        // 检查是否重复
+                        if (state.tasks.some(t => t.id === newOrderId)) {
+                            alert('Order ID already exists!');
+                            input.value = orderId;
+                            return;
+                        }
+                        // 更新订单号
+                        const task = state.tasks.find(t => t.id === orderId);
+                        if (task) {
+                            task.id = newOrderId;
+                            saveState();
+                            renderTasks();
+                        }
+                    }
+                    card.textContent = newOrderId || orderId;
+                    // 恢复其他元素
+                    card.appendChild(leftHandle);
+                    card.appendChild(rightHandle);
+                    card.appendChild(del);
+                }
+                
+                // 清空卡片内容并添加输入框
+                card.textContent = '';
+                card.appendChild(input);
+                input.focus();
+                input.select();
+                
+                // 失去焦点时保存
+                input.onblur = saveNewOrderId;
+                
+                // 按回车时保存
+                input.onkeydown = function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveNewOrderId();
+                    }
+                };
+            };
+            
+            // 拉伸手柄
+            const leftHandle = document.createElement('span');
+            leftHandle.className = 'resize-handle left';
+            leftHandle.style.cssText = 'position:absolute;left:-6px;top:0;width:8px;height:100%;cursor:w-resize;z-index:2;';
+            const rightHandle = document.createElement('span');
+            rightHandle.className = 'resize-handle right';
+            rightHandle.style.cssText = 'position:absolute;right:-6px;top:0;width:8px;height:100%;cursor:e-resize;z-index:2;';
+            card.style.position = 'relative';
+            card.appendChild(leftHandle);
+            card.appendChild(rightHandle);
+            
+            // 删除按钮
+            const del = document.createElement('span');
+            del.className = 'delete-btn';
+            del.textContent = '×';
+            del.onclick = (e) => {
+                e.stopPropagation();
+                // 判断未分配区还是已分配区
+                const date = getCurrentDate();
+                const tasks = state.tasks;
+                let idx = state.tasks.findIndex(t=>t.id===orderId);
+                if (idx !== -1) {
+                    state.tasks.splice(idx,1);
+                } else {
+                    let idx2 = tasks.findIndex(t=>t.id===orderId);
+                    if (idx2 !== -1) tasks.splice(idx2,1);
+                }
+                saveState();
+                renderTasks();
+            };
+            card.appendChild(del);
+            
+            // 拖拽事件
+            card.addEventListener('dragstart', function(e) {
+                e.dataTransfer.setData('text/plain', orderId);
+                setTimeout(()=>{card.style.display='none';},0);
+            });
+            card.addEventListener('dragend', function(e) {
+                card.style.display='';
+            });
+            // 左拉手柄
+            leftHandle.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const task = state.tasks.find(t=>t.id===orderId);
+                if (!task) return;
+                let origSlot = task.slotIndex;
+                let origLen = task.length || 1;
+                let grid = leftHandle.parentNode.parentNode;
+                let rect = grid.getBoundingClientRect();
+                let slotWidth = rect.width / 30;
+                function onMove(ev) {
+                    let mouseX = ev.clientX - rect.left;
+                    let currSlot = Math.round(mouseX / slotWidth);
+                    if (currSlot < 0) currSlot = 0;
+                    if (currSlot > origSlot + origLen - 1) currSlot = origSlot + origLen - 1;
+                    let newSlot = currSlot;
+                    let newLen = origLen + (origSlot - newSlot);
+                    if (newSlot < 0) { newSlot = 0; newLen = origLen + origSlot; }
+                    if (newSlot + newLen > 30) newLen = 30 - newSlot;
+                    // 检查重叠
+                    let overlap = false;
+                    for (let i = 0; i < newLen; i++) {
+                        if (state.tasks.some(t => t.id !== orderId && t.status === 'assigned' && t.driverId === task.driverId && t.slotIndex === newSlot + i)) {
+                            overlap = true;
+                            break;
+                        }
+                    }
+                    if (!overlap && newLen > 0) {
+                        task.slotIndex = newSlot;
+                        task.length = newLen;
+                        saveState();
+                        renderTasks();
+                    }
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+            // 右拉手柄
+            rightHandle.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const task = state.tasks.find(t=>t.id===orderId);
+                if (!task) return;
+                let origSlot = task.slotIndex;
+                let origLen = task.length || 1;
+                let grid = rightHandle.parentNode.parentNode;
+                let rect = grid.getBoundingClientRect();
+                let slotWidth = rect.width / 30;
+                function onMove(ev) {
+                    let mouseX = ev.clientX - rect.left;
+                    let currSlot = Math.round(mouseX / slotWidth);
+                    if (currSlot < 0) currSlot = 0;
+                    if (currSlot > 30) currSlot = 30;
+                    let newLen = Math.max(1, currSlot - origSlot);
+                    if (origSlot + newLen > 30) newLen = 30 - origSlot;
+                    let overlap = false;
+                    for (let i = 0; i < newLen; i++) {
+                        if (state.tasks.some(t => t.id !== orderId && t.status === 'assigned' && t.driverId === task.driverId && t.slotIndex === origSlot + i)) {
+                            overlap = true;
+                            break;
+                        }
+                    }
+                    if (!overlap && newLen > 0) {
+                        task.length = newLen;
+                        saveState();
+                        renderTasks();
+                    }
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+            return card;
+        }
+
+        // ========== 任务分配 ==========
+        function assignTaskToSlot(orderId, rowId, slotIdx) {
+            const date = getCurrentDate();
+            const tasks = state.tasks;
+            if (tasks.some(t=>t.status==='assigned' && t.row===rowId && t.slotIndex===slotIdx)) return;
+            // 计算颜色，确保与相邻不同
+            let prevTask = tasks.find(t=>t.status==='assigned' && t.row===rowId && t.slotIndex===slotIdx-1);
+            let nextTask = tasks.find(t=>t.status==='assigned' && t.row===rowId && t.slotIndex===slotIdx+1);
+            let usedColors = [];
+            if (prevTask) usedColors.push(prevTask.colorIdx);
+            if (nextTask) usedColors.push(nextTask.colorIdx);
+            let colorIdx = 0;
+            while (usedColors.includes(colorIdx) && colorIdx < TASK_COLORS.length) colorIdx++;
+            // 如果所有颜色都被占用，循环使用
+            if (colorIdx >= TASK_COLORS.length) colorIdx = 0;
+            // 更新任务状态
+            let idx = state.tasks.findIndex(t=>t.id===orderId);
+            if (idx !== -1) {
+                // 从未分配区移到已分配
+                let task = {id: orderId, status: 'assigned', driverId: 'driver-1', row: rowId, slotIndex: slotIdx, length: 1, colorIdx: colorIdx % TASK_COLORS.length};
+                tasks.push(task);
+                state.tasks.splice(idx,1);
+            } else {
+                let task = tasks.find(t=>t.id===orderId);
+                if (task) {
+                    task.status = 'assigned';
+                    task.driverId = 'driver-1';
+                    task.row = rowId;
+                    task.slotIndex = slotIdx;
+                    task.length = 1;
+                    task.colorIdx = colorIdx % TASK_COLORS.length;
+                }
+            }
+            saveState();
+            renderTasks();
+        }
+
+        // ========== 拖拽回未分配区 ==========
+        function setupUnassignedDrop() {
+            const unassigned = document.getElementById('unassignedTasks');
+            unassigned.ondragover = (e) => {
+                e.preventDefault();
+                unassigned.style.background = '#ffe5c2';
+            };
+            unassigned.ondragleave = (e) => {
+                unassigned.style.background = '';
+            };
+            unassigned.ondrop = (e) => {
+                e.preventDefault();
+                unassigned.style.background = '';
+                const orderId = e.dataTransfer.getData('text/plain');
+                const date = getCurrentDate();
+                const tasks = state.tasks;
+                let idx = tasks.findIndex(t=>t.id===orderId);
+                if (idx !== -1) {
+                    tasks.splice(idx,1);
+                    state.tasks.push({id: orderId, status: 'unassigned'});
+                    saveState();
+                    renderTasks();
+                }
+            };
+        }
+
+        // ========== 任务创建 ==========
+        document.getElementById('createTaskBtn').onclick = function() {
+            const input = document.getElementById('orderInput');
+            const val = input.value.trim();
+            if (!val) return;
+            if (state.tasks.some(t=>t.id===val)) {
+                alert('Order ID already exists!');
+                return;
+            }
+            state.tasks.push({id: val, status: 'unassigned'});
+            input.value = '';
+            saveState();
+            renderTasks();
+        };
+
+        // 新增：输入框回车快捷提交
+        const orderInput = document.getElementById('orderInput');
+        orderInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('createTaskBtn').click();
+            }
+        });
+
+        // ========== 初始化 ==========
+        async function init() {
+            await loadState();
+            renderTasks();
+            setupUnassignedDrop();
+            // 实时监听tasks表（已完成单号变化）
+            supabase.channel('tasks_changes')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, async () => {
+                    await loadState();
+                    renderTasks();
+                })
+                .subscribe();
+            // 实时监听driver_schedules表（分配变化）
+            supabase.channel('schedules_changes')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_schedules' }, async () => {
+                    await loadState();
+                    renderTasks();
+                })
+                .subscribe();
+        }
+        window.addEventListener('DOMContentLoaded', init);
+
+        // ========== 导航切换逻辑 ==========
+        const navBtns = document.querySelectorAll('.nav-button');
+        const ganttSection = document.getElementById('ganttSection');
+        const costSection = document.getElementById('costSection');
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                navBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if(btn.dataset.view === 'gantt') {
+                    ganttSection.style.display = '';
+                    costSection.classList.remove('active');
+                } else {
+                    ganttSection.style.display = 'none';
+                    costSection.classList.add('active');
+                }
+            });
+        });
+        // 日期选择器默认今天
+        document.getElementById('datePicker').valueAsDate = new Date();
+
+        // ========== 添加司机按钮逻辑 ==========
+        const addDriverBtn = document.getElementById('addDriverBtn');
+        addDriverBtn.onclick = async function() {
+            const newId = 'driver-' + (state.drivers.length + 1);
+            const newDriver = {id: newId, name: 'Driver ' + (state.drivers.length + 1)};
+            // 插入到 Supabase drivers 表
+            await supabase.from('drivers').insert([newDriver]);
+            // 重新加载数据并渲染
+            await loadState();
+            renderTasks();
+        };
+
+        // ========== 导出CSV逻辑 ==========
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.onclick = function() {
+            const table = document.querySelector('#costSection table');
+            let csv = '';
+            // 表头
+            const ths = table.querySelectorAll('thead th');
+            csv += Array.from(ths).map(th => '"' + th.textContent + '"').join(',') + '\n';
+            // 表体
+            const trs = table.querySelectorAll('tbody tr');
+            trs.forEach(tr => {
+                const tds = tr.querySelectorAll('td');
+                csv += Array.from(tds).map(td => '"' + td.textContent + '"').join(',') + '\n';
+            });
+            // 下载
+            const today = document.getElementById('datePicker').value;
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'cost-table-' + today + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        // ========== 修改导出按钮逻辑 ==========
+        const ganttExportBtn = document.getElementById('ganttExportBtn');
+        ganttExportBtn.onclick = function() {
+            let csv = '"Driver","Order ID","Date","Start Time","End Time","Used Hours"\n';
+            const today = document.getElementById('datePicker').value.replace(/-/g, '/');
+            state.tasks.filter(t => t.status === 'assigned').forEach(task => {
+                const driver = state.drivers.find(d => d.id === task.driverId);
+                let rowIdx = task.row && task.row.endsWith('row2') ? 1 : 0;
+                let slot = task.slotIndex || 0;
+                let startTime = rowIdx === 0
+                    ? TIME_POINTS[slot]
+                    : TIME_POINTS[slot + (task.length || 1)];
+                let endSlot = slot + (task.length || 1);
+                let endTime = rowIdx === 0
+                    ? TIME_POINTS[slot + (task.length || 1)]
+                    : TIME_POINTS[slot + (task.length || 1)];
+                let usedHours = ((task.length || 1) * 0.5).toFixed(1);
+                csv += `"${driver ? driver.name : ''}","${task.id}","${today}","${startTime}","${endTime}","${usedHours}"\n`;
+            });
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'gantt-table-' + document.getElementById('datePicker').value + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        // ========== 动态渲染成本表 ========== 
+        function renderCostTable() {
+            const tbody = document.querySelector('#costSection tbody');
+            tbody.innerHTML = '';
+            const today = document.getElementById('datePicker').value;
+            state.tasks.filter(t => t.status === 'assigned').forEach(task => {
+                const tr = document.createElement('tr');
+                // 订单号
+                const tdOrder = document.createElement('td');
+                tdOrder.textContent = task.id;
+                // 司机
+                const driver = state.drivers.find(d => d.id === task.driverId);
+                const tdDriver = document.createElement('td');
+                tdDriver.textContent = driver ? driver.name : '';
+                // 日期
+                const tdDate = document.createElement('td');
+                tdDate.textContent = today.replace(/-/g, '/');
+                // 起止时间
+                let slot = task.slotIndex || 0;
+                let len = task.length || 1;
+                let startTime = TIME_POINTS[slot];
+                let endTime = TIME_POINTS[slot + len];
+                const tdStart = document.createElement('td');
+                tdStart.textContent = startTime;
+                const tdEnd = document.createElement('td');
+                tdEnd.textContent = endTime;
+                // 工时
+                const tdHours = document.createElement('td');
+                tdHours.textContent = (len * 0.5).toFixed(1);
+                tr.appendChild(tdOrder);
+                tr.appendChild(tdDriver);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdStart);
+                tr.appendChild(tdEnd);
+                tr.appendChild(tdHours);
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 在所有函数外部定义全局唯一的TIME_POINTS
+        function padTime(num) { return num < 10 ? '0' + num : '' + num; }
+        const TIME_POINTS = [];
+        for(let h=6; h<=21; h++) {
+            let hour = padTime(h);
+            TIME_POINTS.push(hour+':00');
+            if(h!==21) TIME_POINTS.push(hour+':30');
+        }
+    </script>
+</body>
+</html> 
