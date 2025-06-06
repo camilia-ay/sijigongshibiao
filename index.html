@@ -402,6 +402,12 @@
                 .eq('status', 'Completed');
             if (tasksError) { console.error(tasksError); return; }
 
+            // 1.5. 获取所有自建单号
+            const { data: customTasks, error: customError } = await supabase
+                .from('driver_custom_tasks')
+                .select('id');
+            if (customError) { console.error(customError); return; }
+
             // 2. 获取所有司机
             const { data: drivers, error: driversError } = await supabase
                 .from('drivers')
@@ -415,11 +421,16 @@
             if (schedulesError) { console.error(schedulesError); return; }
 
             // 4. 组装state.tasks
-            // 先全部设为unassigned
-            state.tasks = completedTasks.map(t => ({ id: t.id, status: 'unassigned' }));
+            // 先全部设为unassigned（合并两张表的单号）
+            const allTaskIds = [
+                ...completedTasks.map(t => t.id),
+                ...customTasks.map(t => t.id)
+            ];
+            // 去重
+            const uniqueTaskIds = Array.from(new Set(allTaskIds));
+            state.tasks = uniqueTaskIds.map(id => ({ id, status: 'unassigned' }));
             // 再用driver_schedules覆盖为assigned
             schedules.forEach(sch => {
-                // 只处理tasks表中存在的单号
                 const idx = state.tasks.findIndex(t => t.id === sch.task_id);
                 if (idx !== -1) {
                     state.tasks[idx] = {
@@ -918,7 +929,7 @@
         }
 
         // ========== 任务创建 ==========
-        document.getElementById('createTaskBtn').onclick = function() {
+        document.getElementById('createTaskBtn').onclick = async function() {
             const input = document.getElementById('orderInput');
             const val = input.value.trim();
             if (!val) return;
@@ -926,9 +937,15 @@
                 alert('Order ID already exists!');
                 return;
             }
-            state.tasks.push({id: val, status: 'unassigned'});
+            // 插入到driver_custom_tasks表
+            const { error } = await supabase.from('driver_custom_tasks').insert([{id: val}]);
+            if (error) {
+                alert('新建失败: ' + error.message);
+                console.error('新建driver_custom_tasks失败:', error);
+                return;
+            }
             input.value = '';
-            saveState();
+            await loadState();
             renderTasks();
         };
 
