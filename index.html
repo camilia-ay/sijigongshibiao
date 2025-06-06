@@ -449,21 +449,38 @@
 
         // 保存分配/删除/修改任务到Supabase
         async function saveState() {
-            // 只操作driver_schedules表
-            // 1. 先清空driver_schedules表
-            await supabase.from('driver_schedules').delete().neq('id', 0);
-            // 2. 插入所有已分配任务
-            const assigned = state.tasks.filter(t => t.status === 'assigned');
+            // 正确清空driver_schedules表（uuid主键）
+            const { error: delError } = await supabase.from('driver_schedules').delete().not('id', 'is', null);
+            if (delError) {
+                console.error('删除 driver_schedules 失败:', delError);
+                return;
+            }
+            // 对assigned任务按task_id+driver_id去重
+            const assigned = [];
+            const seen = new Set();
+            state.tasks.forEach(t => {
+                if (t.status === 'assigned') {
+                    const key = t.id + '|' + t.driverId;
+                    if (!seen.has(key)) {
+                        assigned.push(t);
+                        seen.add(key);
+                    }
+                }
+            });
             if (assigned.length > 0) {
-                await supabase.from('driver_schedules').insert(
+                const { error: upsertError } = await supabase.from('driver_schedules').upsert(
                     assigned.map(t => ({
                         task_id: t.id,
                         driver_id: t.driverId,
                         slot_index: t.slotIndex,
                         length: t.length,
                         color_idx: t.colorIdx
-                    }))
+                    })),
+                    { onConflict: 'task_id,driver_id' }
                 );
+                if (upsertError) {
+                    console.error('upsert driver_schedules 失败:', upsertError);
+                }
             }
         }
 
@@ -606,7 +623,7 @@
                         taskSlot.addEventListener('dragleave', function(e) {
                             this.style.background = '';
                         });
-                        taskSlot.addEventListener('drop', function(e) {
+                        taskSlot.addEventListener('drop', async function(e) {
                             e.preventDefault();
                             this.style.background = '';
                             const orderId = e.dataTransfer.getData('text/plain');
@@ -652,7 +669,7 @@
                                 task.slotIndex = slotIndex;
                                 task.length = finalLen;
                                 task.colorIdx = colorIdx;
-                                saveState();
+                                await saveState();
                                 renderTasks();
                             }
                         });
@@ -757,19 +774,16 @@
             const del = document.createElement('span');
             del.className = 'delete-btn';
             del.textContent = '×';
-            del.onclick = (e) => {
+            del.onclick = async (e) => {
                 e.stopPropagation();
-                // 判断未分配区还是已分配区
-                const date = getCurrentDate();
-                const tasks = state.tasks;
+                // 先尝试从driver_custom_tasks表删除（如果不是自建单号不会有影响）
+                await supabase.from('driver_custom_tasks').delete().eq('id', orderId);
+                // 本地state删除
                 let idx = state.tasks.findIndex(t=>t.id===orderId);
                 if (idx !== -1) {
                     state.tasks.splice(idx,1);
-                } else {
-                    let idx2 = tasks.findIndex(t=>t.id===orderId);
-                    if (idx2 !== -1) tasks.splice(idx2,1);
                 }
-                saveState();
+                await loadState();
                 renderTasks();
             };
             card.appendChild(del);
